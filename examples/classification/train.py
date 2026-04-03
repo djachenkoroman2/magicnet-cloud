@@ -15,6 +15,28 @@ from openpoints.models import build_model_from_cfg
 from openpoints.models.layers import furthest_point_sample, fps
 
 
+def resolve_num_points(cfg, *datasets):
+    candidates = [
+        cfg.get('num_points', None),
+        cfg.get('dataset', {}).get('train', {}).get('num_points', None),
+        cfg.get('dataset', {}).get('val', {}).get('num_points', None),
+        cfg.get('dataset', {}).get('test', {}).get('num_points', None),
+    ]
+
+    for dataset in datasets:
+        if dataset is not None and hasattr(dataset, 'num_points'):
+            candidates.append(dataset.num_points)
+
+    for candidate in candidates:
+        if candidate is not None:
+            return int(candidate)
+
+    raise ValueError(
+        'Unable to resolve `num_points` for classification. '
+        'Set top-level `num_points` in the config or provide it in the dataset split config.'
+    )
+
+
 def get_features_by_keys(input_features_dim, data):
     if input_features_dim == 3:
         features = data['pos']
@@ -110,13 +132,14 @@ def main(gpu, cfg, profile=False):
         val_loader.dataset, 'num_classes') else None
     num_points = val_loader.dataset.num_points if hasattr(
         val_loader.dataset, 'num_points') else None
+    cfg.num_points = resolve_num_points(cfg, val_loader.dataset, test_loader.dataset)
     if num_classes is not None:
         assert cfg.num_classes == num_classes
     logging.info(f"number of classes of the dataset: {num_classes}, "
                  f"number of points sampled from dataset: {num_points}, "
                  f"number of points as model input: {cfg.num_points}")
     cfg.classes = cfg.get('classes', None) or val_loader.dataset.classes if hasattr(
-        val_loader.dataset, 'classes') else None or np.range(num_classes)
+        val_loader.dataset, 'classes') else None or np.arange(num_classes)
     validate_fn = eval(cfg.get('val_fn', 'validate'))
 
     # optionally resume from a checkpoint

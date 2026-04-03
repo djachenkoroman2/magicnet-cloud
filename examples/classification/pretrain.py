@@ -16,6 +16,28 @@ from openpoints.models import build_model_from_cfg
 from openpoints.models.layers import furthest_point_sample, fps
 
 
+def resolve_num_points(cfg, *datasets):
+    candidates = [
+        cfg.get('num_points', None),
+        cfg.get('dataset', {}).get('train', {}).get('num_points', None),
+        cfg.get('dataset', {}).get('val', {}).get('num_points', None),
+        cfg.get('dataset', {}).get('test', {}).get('num_points', None),
+    ]
+
+    for dataset in datasets:
+        if dataset is not None and hasattr(dataset, 'num_points'):
+            candidates.append(dataset.num_points)
+
+    for candidate in candidates:
+        if candidate is not None:
+            return int(candidate)
+
+    raise ValueError(
+        'Unable to resolve `num_points` for classification pretraining. '
+        'Set top-level `num_points` in the config or provide it in the dataset split config.'
+    )
+
+
 def main(gpu, cfg, profile=False):
     if cfg.distributed:
         if cfg.mp:
@@ -93,6 +115,7 @@ def main(gpu, cfg, profile=False):
                                            datatransforms_cfg=cfg.datatransforms,
                                            distributed=cfg.distributed,
                                            )
+    cfg.num_points = resolve_num_points(cfg, train_loader.dataset, val_loader.dataset)
     logger.info(f"length of training dataset: {len(train_loader.dataset)}")
     logger.info(f"length of validation dataset: {len(val_loader.dataset)}")
 
