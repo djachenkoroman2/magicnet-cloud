@@ -15,6 +15,13 @@ if __name__ == "__main__":
     cfg.load(args.cfg, recursive=True)
     cfg.update(opts)
     cfg.resolve_references()
+    model_name = str(cfg.get('model', {}).get('NAME', ''))
+    if model_name in {'BaseSeg', 'BasePartSeg'}:
+        raise ValueError(
+            f'Config `{args.cfg}` defines a segmentation model ({model_name}). '
+            'Use `examples/segmentation/main.py` for semantic segmentation or '
+            '`examples/shapenetpart/main.py` for part segmentation.'
+        )
     if cfg.seed is None:
         cfg.seed = np.random.randint(1, 10000)
 

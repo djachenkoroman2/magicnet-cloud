@@ -37,14 +37,36 @@ def resolve_num_points(cfg, *datasets):
     )
 
 
-def get_features_by_keys(input_features_dim, data):
-    if input_features_dim == 3:
-        features = data['pos']
-    elif input_features_dim == 4:
-        features = torch.cat(
-            (data['pos'], data['heights']), dim=-1)
-        raise NotImplementedError("error")
-    return features.transpose(1, 2).contiguous()
+def build_point_features(data, cfg):
+    if 'x' in data:
+        return data['x']
+
+    feature_keys = cfg.get('feature_keys', None)
+    if feature_keys:
+        keys = [key.strip() for key in str(feature_keys).split(',') if key.strip()]
+        missing = [key for key in keys if key not in data]
+        if missing:
+            raise KeyError(
+                f'Unable to build input features from feature_keys={feature_keys!r}. '
+                f'Missing keys in batch: {missing}'
+            )
+        return torch.cat([data[key] for key in keys], dim=-1)
+
+    if 'pos' in data:
+        return data['pos']
+
+    raise KeyError(
+        'The input batch does not contain `x`, and no usable `feature_keys`/`pos` fallback was found.'
+    )
+
+
+def validate_classification_target_shape(target, cfg):
+    if target.ndim != 1:
+        raise ValueError(
+            f'Classification training expects one label per sample, but got target shape {tuple(target.shape)}. '
+            f'This usually means a segmentation config/dataset was launched with `examples/classification/main.py`. '
+            f'Config model is {cfg.model.NAME!r}.'
+        )
 
 
 def write_to_csv(oa, macc, accs, best_epoch, cfg, write_header=True):
@@ -262,8 +284,9 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, epoch, cfg):
         for key in data.keys():
             data[key] = data[key].cuda(non_blocking=True)
         num_iter += 1
-        points = data['x']
         target = data['y']
+        validate_classification_target_shape(target, cfg)
+        points = build_point_features(data, cfg)
         """ bebug
         from openpoints.dataset import vis_points
         vis_points(data['pos'].cpu().numpy()[0])
@@ -323,7 +346,8 @@ def validate(model, val_loader, cfg):
         for key in data.keys():
             data[key] = data[key].cuda(non_blocking=True)
         target = data['y']
-        points = data['x']
+        validate_classification_target_shape(target, cfg)
+        points = build_point_features(data, cfg)
         points = points[:, :npoints]
         data['pos'] = points[:, :, :3].contiguous()
         data['x'] = points[:, :, :cfg.model.in_channels].transpose(1, 2).contiguous()
