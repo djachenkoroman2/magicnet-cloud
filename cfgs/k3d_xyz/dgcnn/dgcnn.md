@@ -63,7 +63,7 @@
 - `num_classes: 8`
 - `datatransforms`
 - `epochs`, `optimizer`, `sched`, `lr`
-- `log_dir`, `val_freq`, `wandb.project`
+- `log_dir`, `val_freq`
 - train/val/test split-настройки, кроме переопределённого `dataset.train.voxel_max`
 
 **Практический смысл**

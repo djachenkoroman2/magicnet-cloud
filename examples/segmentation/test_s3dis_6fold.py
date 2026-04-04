@@ -9,12 +9,11 @@ import logging
 import numpy as np
 import glob
 import pathlib
-import wandb
 from main import write_to_csv, test, generate_data_list
 from openpoints.models import build_model_from_cfg
 from openpoints.utils import get_mious, ConfusionMatrix
 from openpoints.utils import set_random_seed, load_checkpoint, setup_logger_dist, \
-    cal_model_parm_nums, Wandb, generate_exp_directory, EasyConfig, dist_utils, parse_config_path
+    cal_model_parm_nums, generate_exp_directory, EasyConfig, dist_utils, parse_config_path
 import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -79,7 +78,7 @@ if __name__ == "__main__":
         cfg.exp_name,  # cfg file name
     ]
     for i, opt in enumerate(opts):
-        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'path' not in opt and 'wandb' not in opt and '/' not in opt:
+        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'path' not in opt and '/' not in opt:
             tags.append(opt)
     cfg.root_dir = os.path.join(cfg.root_dir, cfg.task_name)
 
@@ -88,7 +87,6 @@ if __name__ == "__main__":
 
     generate_exp_directory(
         cfg, tags, additional_id=os.environ.get('MASTER_PORT', None))
-    cfg.wandb.tags = tags
 
     os.environ["JOB_LOG_DIR"] = cfg.log_dir
     cfg_path = os.path.join(cfg.run_dir, "cfg.yaml")
@@ -97,12 +95,8 @@ if __name__ == "__main__":
         os.system('cp %s %s' % (args.cfg, cfg.run_dir))
     cfg.cfg_path = cfg_path
 
-    # wandb config
-    cfg.wandb.name = cfg.run_name
     # logger
     setup_logger_dist(cfg.log_path, cfg.rank, name=cfg.dataset.common.NAME)
-    if cfg.rank == 0:
-        Wandb.launch(cfg, cfg.wandb.use_wandb)
     set_random_seed(cfg.seed + cfg.rank, deterministic=cfg.deterministic)
 
     cfg.csv_path = os.path.join(cfg.run_dir, cfg.run_name + f'_allareas.csv')

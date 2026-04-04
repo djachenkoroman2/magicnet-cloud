@@ -66,5 +66,3 @@ datatransforms:
 save_freq: -1 # save epoch every xxx epochs, -1 only save last and best.
 
 log_dir: log/s3dis/pix4point
-wandb:
-  project: pix4point-S3DIS

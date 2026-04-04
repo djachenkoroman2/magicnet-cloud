@@ -76,5 +76,3 @@ min_lr: 1.0e-6
 grad_norm_clip: 10
 
 log_dir: log/scanobject/pix4point
-wandb:
-  project: pix4point-ScanObjectNN

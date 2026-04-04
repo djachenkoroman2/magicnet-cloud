@@ -1,10 +1,10 @@
-import os, logging, csv, numpy as np, wandb
+import os, logging, csv, numpy as np
 from tqdm import tqdm
 import torch, torch.nn as nn
 from torch import distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 from openpoints.utils import set_random_seed, save_checkpoint, load_checkpoint, load_checkpoint_inv, resume_checkpoint, setup_logger_dist, \
-    cal_model_parm_nums, Wandb
+    cal_model_parm_nums
 from openpoints.utils import AverageMeter, ConfusionMatrix, get_mious
 from openpoints.dataset import build_dataloader_from_cfg
 from openpoints.transforms import build_transforms_from_cfg
@@ -72,9 +72,9 @@ def validate_classification_target_shape(target, cfg):
 def write_to_csv(oa, macc, accs, best_epoch, cfg, write_header=True):
     accs_table = [f'{item:.2f}' for item in accs]
     header = ['method', 'OA', 'mAcc'] + \
-        cfg.classes + ['best_epoch', 'log_path', 'wandb link']
+        cfg.classes + ['best_epoch', 'log_path']
     data = [cfg.exp_name, f'{oa:.3f}', f'{macc:.2f}'] + accs_table + [
-        str(best_epoch), cfg.run_dir, wandb.run.get_url() if cfg.wandb.use_wandb else '-']
+        str(best_epoch), cfg.run_dir]
     with open(cfg.csv_path, 'a', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         if write_header:
@@ -103,7 +103,6 @@ def main(gpu, cfg, profile=False):
     # logger
     setup_logger_dist(cfg.log_path, cfg.rank, name=cfg.dataset.common.NAME)
     if cfg.rank == 0 :
-        Wandb.launch(cfg, cfg.wandb.use_wandb)
         writer = SummaryWriter(log_dir=cfg.run_dir)
     else:
         writer = None

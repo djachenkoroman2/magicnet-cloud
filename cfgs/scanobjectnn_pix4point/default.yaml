@@ -57,5 +57,3 @@ print_freq: 10
 val_freq: 1
 # ----------------- Model related
 log_dir: log/scanobject/pix4point
-wandb:
-  project: pix4point-ScanObjectNN

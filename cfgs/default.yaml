@@ -36,10 +36,6 @@ step_per_update: 1
 start_epoch: 1 
 sched_on_epoch: True
 
-# We support wandb for online results collection, please check their documentation for details: https://docs.wandb.ai/
-wandb:
-  use_wandb: False 
-
 use_amp: False
 # ---------------------------------------------------------------------------- #
 # Evaluation cfgs

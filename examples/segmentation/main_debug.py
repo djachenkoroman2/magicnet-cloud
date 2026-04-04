@@ -5,13 +5,13 @@ If more than 1 GPU is provided, will launch multi processing distributed trainin
 if you only wana use 1 GPU, set `CUDA_VISIBLE_DEVICES` accordingly
 """
 import __init__
-import argparse, yaml, os, logging, numpy as np, csv, wandb, glob
+import argparse, yaml, os, logging, numpy as np, csv, glob
 from tqdm import tqdm
 import torch, torch.nn as nn
 from torch import distributed as dist, multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
 from openpoints.utils import set_random_seed, save_checkpoint, load_checkpoint, resume_checkpoint, setup_logger_dist, \
-    cal_model_parm_nums, Wandb, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, load_checkpoint_inv, parse_config_path
+    cal_model_parm_nums, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, load_checkpoint_inv, parse_config_path
 from openpoints.utils.scatter import scatter
 from openpoints.utils import AverageMeter, ConfusionMatrix, get_mious
 from openpoints.dataset import build_dataloader_from_cfg, get_features_by_keys, get_class_weights
@@ -29,10 +29,9 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def write_to_csv(oa, macc, miou, ious, best_epoch, cfg, write_header=True, area=5):
     ious_table = [f'{item:.2f}' for item in ious]
-    header = ['method', 'Area', 'OA', 'mACC', 'mIoU'] + cfg.classes + ['best_epoch', 'log_path', 'wandb link']
+    header = ['method', 'Area', 'OA', 'mACC', 'mIoU'] + cfg.classes + ['best_epoch', 'log_path']
     data = [cfg.cfg_basename, str(area), f'{oa:.2f}', f'{macc:.2f}',
-            f'{miou:.2f}'] + ious_table + [str(best_epoch), cfg.run_dir,
-                                           wandb.run.get_url() if cfg.wandb.use_wandb else '-']
+            f'{miou:.2f}'] + ious_table + [str(best_epoch), cfg.run_dir]
     with open(cfg.csv_path, 'a', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         if write_header:
@@ -122,7 +121,6 @@ def main(gpu, cfg):
     # logger
     setup_logger_dist(cfg.log_path, cfg.rank, name=cfg.dataset.common.NAME)
     if cfg.rank == 0:
-        Wandb.launch(cfg, cfg.wandb.use_wandb)
         writer = SummaryWriter(log_dir=cfg.run_dir) if cfg.is_training else None
     else:
         writer = None
@@ -285,11 +283,6 @@ def main(gpu, cfg):
     #                         is_best=is_best
     #                         )
     #         is_best = False
-    # # do not save file to wandb to save wandb space
-    # # if writer is not None:
-    # #     Wandb.add_file(os.path.join(cfg.ckpt_dir, f'{cfg.run_name}_ckpt_best.pth'))
-    # # Wandb.add_file(os.path.join(cfg.ckpt_dir, f'{cfg.logname}_ckpt_latest.pth'))
-
     # # validate
     # with np.printoptions(precision=2, suppress=True):
     #     logging.info(
@@ -335,7 +328,6 @@ def main(gpu, cfg):
     # if writer is not None:
     #     writer.close()
     # # dist.destroy_process_group() # comment this line due to https://github.com/guochengqian/PointNeXt/issues/95
-    # wandb.finish(exit_code=True)
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, scaler, epoch, total_iter, cfg):
@@ -727,7 +719,7 @@ if __name__ == "__main__":
     ]
     opt_list = [] # for checking experiment configs from logging file
     for i, opt in enumerate(opts):
-        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'pretrain' not in opt and 'path' not in opt and 'wandb' not in opt and '/' not in opt:
+        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'pretrain' not in opt and 'path' not in opt and '/' not in opt:
             opt_list.append(opt)
     cfg.root_dir = os.path.join(cfg.root_dir, cfg.task_name)
     cfg.opts = '-'.join(opt_list)
@@ -735,19 +727,14 @@ if __name__ == "__main__":
     cfg.is_training = cfg.mode not in ['test', 'testing', 'val', 'eval', 'evaluation']
     if cfg.mode in ['resume', 'val', 'test']:
         resume_exp_directory(cfg, pretrained_path=cfg.pretrained_path)
-        cfg.wandb.tags = [cfg.mode]
     else:
         generate_exp_directory(cfg, tags, additional_id=os.environ.get('MASTER_PORT', None))
-        cfg.wandb.tags = tags
     os.environ["JOB_LOG_DIR"] = cfg.log_dir
     cfg_path = os.path.join(cfg.run_dir, "cfg.yaml")
     with open(cfg_path, 'w') as f:
         yaml.dump(cfg, f, indent=2)
         os.system('cp %s %s' % (args.cfg, cfg.run_dir))
     cfg.cfg_path = cfg_path
-
-    # wandb config
-    cfg.wandb.name = cfg.run_name
 
     # multi processing.
     if cfg.mp:

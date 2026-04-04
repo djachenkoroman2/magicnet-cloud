@@ -167,4 +167,3 @@ def resume_exp_directory(cfg, pretrained_path=None):
         
     if cfg.get('rank', 0) == 0:
         os.makedirs(cfg.run_dir, exist_ok=True)
-    cfg.wandb.tags = ['resume']

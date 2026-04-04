@@ -49,7 +49,6 @@ packages = {
     "tensorboard": "tensorboard",
     "termcolor": "termcolor",
     "tqdm": "tqdm",
-    "wandb": "wandb",
 }
 
 for pip_name, module_name in packages.items():

@@ -54,12 +54,10 @@
 - `log_dir`: имя для логов в конфиге, но в текущем коде оно потом перезаписывается реальным `run_dir`, так что почти не влияет.
 - `save_freq`: частота сохранения промежуточных checkpoint-ов; `-1` значит не делать milestone-сейвы по эпохам, оставлять только `latest` и `best`.
 - `val_freq`: как часто запускать валидацию; `1` значит каждую эпоху.
-- `wandb.project`: имя проекта в Weights & Biases.
 
 **Что важно знать**
 - `feature_keys: pos,heights` здесь согласован с [pointnet++.yaml](/home/researcher/dev/PointNeXt/cfgs/k3d_xyz/pointnet++.yaml#L5), где `in_channels: 4`.
 - `runtime.device` в [default.yaml](/home/researcher/dev/magicnet/cfgs/k3d_xyz/default.yaml) теперь переключает устройство исполнения: `gpu`, `cpu` или `auto`.
-- `wandb.project` сам по себе не включает W&B; для этого ещё нужен `wandb.use_wandb: False/True` из [cfgs/default.yaml](/home/researcher/dev/PointNeXt/cfgs/default.yaml#L35).
 - `log_dir` в рантайме перезаписывается в [logger.py](/home/researcher/dev/PointNeXt/openpoints/utils/logger.py#L129).
 - `val_fn` и `use_voting` выглядят как частично устаревшие поля для текущего segmentation pipeline.
 

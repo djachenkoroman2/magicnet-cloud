@@ -75,6 +75,3 @@ use_voting: False
 log_dir: 'k3d_xyzrgb'
 save_freq: -1
 val_freq: 1
-
-wandb:
-  project: PointNeXt-K3DXYZRGB

@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch import distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 
-from openpoints.utils import setup_logger_dist, Wandb
+from openpoints.utils import setup_logger_dist
 from openpoints.utils import AverageMeter, resume_model, load_checkpoint, save_checkpoint, \
     cal_model_parm_nums, set_random_seed
 from openpoints.dataset import build_dataloader_from_cfg
@@ -50,8 +50,6 @@ def main(gpu, cfg, profile=False):
     logger = setup_logger_dist(cfg.log_path, cfg.rank, name=cfg.dataset.common.NAME)
     # tensorboard
     if cfg.rank == 0:
-        # tensorboard
-        Wandb.launch(cfg, cfg.wandb.use_wandb)
         writer = SummaryWriter(log_dir=cfg.run_dir)
     else:
         writer = None

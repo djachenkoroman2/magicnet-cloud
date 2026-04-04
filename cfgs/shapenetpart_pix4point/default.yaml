@@ -68,6 +68,3 @@ val_freq: 1
 
 # ----------------- Model related
 pretrained_path: null
-
-wandb:
-  project: pix4point-ShapeNetPart

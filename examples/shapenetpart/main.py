@@ -6,7 +6,6 @@ import yaml
 import os
 import sys
 import logging
-import wandb
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -33,7 +32,7 @@ from openpoints.transforms import build_transforms_from_cfg
 from openpoints.utils.scatter import scatter
 from openpoints.utils import AverageMeter, ConfusionMatrix
 from openpoints.utils import set_random_seed, save_checkpoint, load_checkpoint, resume_checkpoint, setup_logger_dist, \
-    cal_model_parm_nums, Wandb, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, parse_config_path
+    cal_model_parm_nums, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, parse_config_path
 from openpoints.models.layers import furthest_point_sample
 
 
@@ -109,7 +108,6 @@ def main(gpu, cfg):
     # logger
     setup_logger_dist(cfg.log_path, cfg.rank, name=cfg.dataset.common.NAME)
     if cfg.rank == 0:
-        Wandb.launch(cfg, cfg.wandb.use_wandb)
         writer = SummaryWriter(log_dir=cfg.run_dir)
     else:
         writer = None
@@ -253,9 +251,6 @@ def main(gpu, cfg):
                                              'cls_miou': cls_miou_when_best},
                             is_best=is_best
                             )
-    # if writer is not None:
-    #     Wandb.add_file(os.path.join(cfg.ckpt_dir, f'{cfg.run_name}_ckpt_best.pth'))
-    # Wandb.add_file(os.path.join(cfg.ckpt_dir, f'{cfg.logname}_ckpt_latest.pth'))
     with np.printoptions(precision=2, suppress=True):
         logging.info(f'Best Epoch {best_epoch},'
                      f'Instance mIoU {best_ins_miou:.2f}, '
@@ -282,7 +277,6 @@ def main(gpu, cfg):
         writer.close()
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
-    wandb.finish(exit_code=True)
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, scheduler, epoch, cfg):
@@ -415,7 +409,7 @@ if __name__ == "__main__":
     ]
     opt_list = [] # for checking experiment configs from logging file
     for i, opt in enumerate(opts):
-        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'pretrain' not in opt and 'path' not in opt and 'wandb' not in opt and '/' not in opt:
+        if 'rank' not in opt and 'dir' not in opt and 'root' not in opt and 'pretrain' not in opt and 'path' not in opt and '/' not in opt:
             opt_list.append(opt)
     cfg.root_dir = os.path.join(cfg.root_dir, cfg.task_name)
     cfg.opts = '-'.join(opt_list)
@@ -424,19 +418,14 @@ if __name__ == "__main__":
 
     if cfg.mode in ['resume', 'test', 'val']:
         resume_exp_directory(cfg, pretrained_path=cfg.pretrained_path)
-        cfg.wandb.tags = [cfg.mode]
     else:
         generate_exp_directory(cfg, tags, additional_id=os.environ.get('MASTER_PORT', None))
-        cfg.wandb.tags = tags
     os.environ["JOB_LOG_DIR"] = cfg.log_dir
     cfg_path = os.path.join(cfg.run_dir, "cfg.yaml")
     with open(cfg_path, 'w') as f:
         yaml.dump(cfg, f, indent=2)
         os.system('cp %s %s' % (args.cfg, cfg.run_dir))
     cfg.cfg_path = cfg_path
-
-    # wandb config
-    cfg.wandb.name = cfg.run_name
 
     # multi processing.
     if cfg.mp:

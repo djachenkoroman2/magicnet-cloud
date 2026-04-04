@@ -14,7 +14,7 @@
 
 ```bash
 bash script/install_colab_requirements.sh
-python examples/classification/main.py --cfg cfgs/scanobjectnn/dgcnn.yaml data_dir=/content/data epochs=1 wandb.use_wandb=False
+python examples/classification/main.py --cfg cfgs/scanobjectnn/dgcnn.yaml data_dir=/content/data epochs=1
 ```
 
 Если нужно хранить логи вне репозитория, можно передать, например, `log_root=/content/drive/MyDrive/pointnext_logs`.
@@ -24,7 +24,7 @@ python examples/classification/main.py --cfg cfgs/scanobjectnn/dgcnn.yaml data_d
 Например, `PointNet++`-запуск можно стартовать сразу так:
 
 ```bash
-bash script/main_segmentation.sh cfgs/k3d_xyz/pointnet++/pointnet++.yaml data_dir=/content/data log_root=/content/drive/MyDrive/pointnext_logs epochs=1 wandb.use_wandb=False
+bash script/main_segmentation.sh cfgs/k3d_xyz/pointnet++/pointnet++.yaml data_dir=/content/data log_root=/content/drive/MyDrive/pointnext_logs epochs=1
 ```
 
 Ноутбук для Colab:

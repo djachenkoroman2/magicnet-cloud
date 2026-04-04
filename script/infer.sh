@@ -102,7 +102,6 @@ echo "Saving predictions to: $OUTPUT_DIR"
     pretrained_path="$CKPT_PATH" \
     dataset.test.data_path="$POINT_CLOUD_PATH" \
     save_pred=True \
-    save_path="$OUTPUT_DIR" \
-    wandb.use_wandb=False
+    save_path="$OUTPUT_DIR"
 
 echo "Expected prediction file: $EXPECTED_OUTPUT"
