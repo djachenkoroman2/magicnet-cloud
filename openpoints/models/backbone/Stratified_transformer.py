@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch_points3d.modules.KPConv.kernels import KPConvLayer
 from torch_points3d.core.common_modules import FastBatchNorm1d
 import torch_points_kernels as tp
-from torch_scatter import scatter_softmax
+from openpoints.utils.scatter import scatter_softmax
 from torch_geometric.nn import voxel_grid
 from openpoints.cpp.pointops.functions import pointops
 from ..layers import DropPath, trunc_normal_

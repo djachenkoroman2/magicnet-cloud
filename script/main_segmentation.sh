@@ -83,6 +83,77 @@ detect_python_bin() {
     echo "python3"
 }
 
+is_google_colab_runtime() {
+    [[ -n "${COLAB_GPU:-}" ]] && return 0
+    [[ "$REPO_ROOT" == /content/* ]] && return 0
+    [[ "$CALLER_PWD" == /content/* ]] && return 0
+    return 1
+}
+
+infer_colab_install_flags() {
+    local cfg_path=$1
+    local install_torch_scatter=0
+    local install_pointnet2_batch=0
+    local install_pointops=0
+
+    if grep -Eq 'NAME:[[:space:]]*PointNet2Encoder|NAME:[[:space:]]*PointNextEncoder' "$cfg_path"; then
+        install_pointnet2_batch=1
+    fi
+
+    if grep -Eq 'NAME:[[:space:]]*PTSeg|block:[[:space:]]*PointTransformerBlock|Stratified' "$cfg_path"; then
+        install_pointops=1
+    fi
+
+    if grep -Eq 'Stratified|PointNextPyG' "$cfg_path"; then
+        install_torch_scatter=1
+    fi
+
+    echo "$install_torch_scatter $install_pointnet2_batch $install_pointops"
+}
+
+bootstrap_colab_requirements() {
+    local cfg_path=$1
+    local auto_torch_scatter
+    local auto_pointnet2_batch
+    local auto_pointops
+    local install_torch_scatter
+    local install_pointnet2_batch
+    local install_pointops
+
+    if [[ "${SKIP_COLAB_REQUIREMENTS:-0}" == "1" ]]; then
+        echo "Skipping Colab dependency bootstrap because SKIP_COLAB_REQUIREMENTS=1"
+        return 0
+    fi
+
+    if ! is_google_colab_runtime; then
+        return 0
+    fi
+
+    if [[ ! -f "$SCRIPT_DIR/install_colab_requirements.sh" ]]; then
+        echo "Colab dependency installer not found: $SCRIPT_DIR/install_colab_requirements.sh" >&2
+        return 1
+    fi
+
+    read -r auto_torch_scatter auto_pointnet2_batch auto_pointops < <(infer_colab_install_flags "$cfg_path")
+
+    install_torch_scatter="${INSTALL_TORCH_SCATTER:-$auto_torch_scatter}"
+    install_pointnet2_batch="${INSTALL_POINTNET2_BATCH:-$auto_pointnet2_batch}"
+    install_pointops="${INSTALL_POINTOPS:-$auto_pointops}"
+
+    echo "Detected Google Colab runtime; preparing optional dependencies."
+    echo "INSTALL_TORCH_SCATTER=$install_torch_scatter INSTALL_POINTNET2_BATCH=$install_pointnet2_batch INSTALL_POINTOPS=$install_pointops"
+
+    env \
+        "PYTHON_BIN=$PYTHON_BIN" \
+        "INSTALL_TORCH_SCATTER=$install_torch_scatter" \
+        "INSTALL_POINTNET2_BATCH=$install_pointnet2_batch" \
+        "INSTALL_POINTOPS=$install_pointops" \
+        "INSTALL_CHAMFER_DIST=${INSTALL_CHAMFER_DIST:-0}" \
+        "INSTALL_EMD=${INSTALL_EMD:-0}" \
+        "INSTALL_SUBSAMPLING=${INSTALL_SUBSAMPLING:-0}" \
+        bash "$SCRIPT_DIR/install_colab_requirements.sh"
+}
+
 if [[ $# -lt 1 ]]; then
     echo "Usage: bash script/main_segmentation.sh <config_path> [extra args...]" >&2
     exit 1
@@ -120,8 +191,11 @@ echo $NUM_GPU_AVAILABLE
 
 
 cfg=$(resolve_cfg_path "$1")
-PY_ARGS=${@:2}
-"$PYTHON_BIN" examples/segmentation/main.py --cfg "$cfg" ${PY_ARGS}
+PY_ARGS=("${@:2}")
+
+bootstrap_colab_requirements "$cfg"
+
+"$PYTHON_BIN" examples/segmentation/main.py --cfg "$cfg" "${PY_ARGS[@]}"
 
 
 # how to run

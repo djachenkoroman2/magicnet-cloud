@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 from torch import distributed as dist, multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
-from torch_scatter import scatter
 import torch.nn.functional as F
 import warnings
 import numpy as np
@@ -31,6 +30,7 @@ from openpoints.scheduler import build_scheduler_from_cfg
 from openpoints.optim import build_optimizer_from_cfg
 from openpoints.dataset import build_dataloader_from_cfg, get_class_weights, get_features_by_keys
 from openpoints.transforms import build_transforms_from_cfg
+from openpoints.utils.scatter import scatter
 from openpoints.utils import AverageMeter, ConfusionMatrix
 from openpoints.utils import set_random_seed, save_checkpoint, load_checkpoint, resume_checkpoint, setup_logger_dist, \
     cal_model_parm_nums, Wandb, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, parse_config_path

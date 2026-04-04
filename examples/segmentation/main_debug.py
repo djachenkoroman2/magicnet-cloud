@@ -10,9 +10,9 @@ from tqdm import tqdm
 import torch, torch.nn as nn
 from torch import distributed as dist, multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
-from torch_scatter import scatter
 from openpoints.utils import set_random_seed, save_checkpoint, load_checkpoint, resume_checkpoint, setup_logger_dist, \
     cal_model_parm_nums, Wandb, generate_exp_directory, resume_exp_directory, EasyConfig, dist_utils, find_free_port, load_checkpoint_inv, parse_config_path
+from openpoints.utils.scatter import scatter
 from openpoints.utils import AverageMeter, ConfusionMatrix, get_mious
 from openpoints.dataset import build_dataloader_from_cfg, get_features_by_keys, get_class_weights
 from openpoints.dataset.data_util import voxelize

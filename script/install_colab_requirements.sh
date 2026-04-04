@@ -15,6 +15,11 @@ INSTALL_CHAMFER_DIST="${INSTALL_CHAMFER_DIST:-0}"
 INSTALL_EMD="${INSTALL_EMD:-0}"
 INSTALL_SUBSAMPLING="${INSTALL_SUBSAMPLING:-0}"
 
+python_module_exists() {
+  local module_name="$1"
+  "$PYTHON_BIN" -c "import importlib.util, sys; raise SystemExit(0 if importlib.util.find_spec(sys.argv[1]) else 1)" "$module_name"
+}
+
 if [[ ! -f pyproject.toml ]]; then
   echo "Run this script from the repository root or keep the original project layout." >&2
   exit 1
@@ -89,9 +94,15 @@ install_local_extension() {
   local flag="$1"
   local rel_path="$2"
   local label="$3"
+  local module_name="${4:-}"
 
   if [[ "$flag" != "1" ]]; then
     echo "Skipping ${label}. Set ${label}=1 to build it in the current Colab runtime."
+    return 0
+  fi
+
+  if [[ -n "$module_name" ]] && python_module_exists "$module_name"; then
+    echo "${label} is already available (${module_name})."
     return 0
   fi
 
@@ -99,11 +110,11 @@ install_local_extension() {
   "${PIP_BIN[@]}" install -v "./${rel_path}"
 }
 
-install_local_extension "$INSTALL_POINTNET2_BATCH" "openpoints/cpp/pointnet2_batch" "INSTALL_POINTNET2_BATCH"
-install_local_extension "$INSTALL_POINTOPS" "openpoints/cpp/pointops" "INSTALL_POINTOPS"
-install_local_extension "$INSTALL_CHAMFER_DIST" "openpoints/cpp/chamfer_dist" "INSTALL_CHAMFER_DIST"
-install_local_extension "$INSTALL_EMD" "openpoints/cpp/emd" "INSTALL_EMD"
-install_local_extension "$INSTALL_SUBSAMPLING" "openpoints/cpp/subsampling" "INSTALL_SUBSAMPLING"
+install_local_extension "$INSTALL_POINTNET2_BATCH" "openpoints/cpp/pointnet2_batch" "INSTALL_POINTNET2_BATCH" "pointnet2_batch_cuda"
+install_local_extension "$INSTALL_POINTOPS" "openpoints/cpp/pointops" "INSTALL_POINTOPS" "pointops_cuda"
+install_local_extension "$INSTALL_CHAMFER_DIST" "openpoints/cpp/chamfer_dist" "INSTALL_CHAMFER_DIST" "chamfer"
+install_local_extension "$INSTALL_EMD" "openpoints/cpp/emd" "INSTALL_EMD" "emd_cuda"
+install_local_extension "$INSTALL_SUBSAMPLING" "openpoints/cpp/subsampling" "INSTALL_SUBSAMPLING" "grid_subsampling"
 
 echo
 echo "Colab runtime setup is ready."

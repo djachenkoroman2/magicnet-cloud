@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from torch_geometric.nn import radius as ballquery, radius_graph, knn, knn_graph, fps, knn_interpolate
-from torch_scatter import scatter
+from openpoints.utils.scatter import scatter
 
 from ..build import MODELS
 from ..layers import create_linearblock, create_linearblock, create_convblock2d, create_act, CHANNEL_MAP, \
