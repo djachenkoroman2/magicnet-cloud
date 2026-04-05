@@ -16,6 +16,25 @@ from openpoints.models import build_model_from_cfg
 from openpoints.models.layers import furthest_point_sample, fps
 
 
+def get_process_device(cfg, gpu=None):
+    if getattr(cfg, 'device_type', 'cuda') != 'cuda':
+        return torch.device('cpu')
+    if cfg.distributed:
+        device_index = cfg.rank if gpu is None else gpu
+        return torch.device(f'cuda:{device_index}')
+    return torch.device(cfg.device)
+
+
+def move_batch_to_device(data, device):
+    non_blocking = device.type == 'cuda'
+    keys = list(data.keys() if callable(data.keys) else data.keys)
+    for key in keys:
+        value = data[key]
+        if hasattr(value, 'to'):
+            data[key] = value.to(device, non_blocking=non_blocking)
+    return data
+
+
 def resolve_num_points(cfg, *datasets):
     candidates = [
         cfg.get('num_points', None),
@@ -55,11 +74,12 @@ def main(gpu, cfg, profile=False):
         writer = None
 
     set_random_seed(cfg.seed + cfg.rank, deterministic=cfg.deterministic)
-    torch.backends.cudnn.enabled = True
+    process_device = get_process_device(cfg, gpu)
+    torch.backends.cudnn.enabled = cfg.use_gpu
     logger.info(cfg)
 
     # build model
-    model = build_model_from_cfg(cfg.model).to(cfg.rank)
+    model = build_model_from_cfg(cfg.model).to(process_device)
     model_size = cal_model_parm_nums(model)
     logging.info(model)
     logging.info('Number of params: %.4f M' % (model_size / 1e6))
@@ -67,7 +87,7 @@ def main(gpu, cfg, profile=False):
     if profile:
         model.eval()
         B, N, C = 32, 2048, cfg.model.encoder_args.in_channels
-        points = torch.randn(B, N, 3).cuda()
+        points = torch.randn(B, N, 3, device=process_device)
         # from thop import profile as thop_profile
         # macs, params = thop_profile(model, inputs=(points, features))
         # macs = macs / 1e6
@@ -81,7 +101,8 @@ def main(gpu, cfg, profile=False):
             start_time = time.time()
             for _ in range(n_runs):
                 model(points)
-                torch.cuda.synchronize()
+                if process_device.type == 'cuda':
+                    torch.cuda.synchronize()
             time_taken = time.time() - start_time
         print(f'inference time: {time_taken / float(n_runs)}')
         return False
@@ -169,8 +190,7 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, epoch, cfg):
     pbar = tqdm(enumerate(train_loader), total=train_loader.__len__())
     num_iter = 0
     for idx, data in pbar:
-        for key in data.keys():
-            data[key] = data[key].cuda(non_blocking=True)
+        move_batch_to_device(data, get_process_device(cfg))
         num_iter += 1
         points = data['pos'][:, :, :3].contiguous()
         # data['x'] = data['x'][:, :, :cfg.model.encoder_args.in_channels].transpose(1, 2).contiguous()
@@ -205,7 +225,8 @@ def validate(model, val_loader, cfg):
 
     pbar = tqdm(enumerate(val_loader), total=val_loader.__len__())
     for idx, data in pbar:
-        points = data['pos'].cuda(non_blocking=True)
+        move_batch_to_device(data, get_process_device(cfg))
+        points = data['pos']
 
         num_curr_pts = points.shape[1]
         if num_curr_pts != npoints:

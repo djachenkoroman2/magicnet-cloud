@@ -52,7 +52,7 @@ class DistillCls(BaseCls):
         in_channels = self.encoder.distill_channels
         distill_args.distill_head_args.in_channels = in_channels
         self.dist_head = build_model_from_cfg(distill_args.distill_head_args)
-        self.dist_model = build_model_from_cfg(distill_args).cuda()
+        self.dist_model = build_model_from_cfg(distill_args)
         load_checkpoint(self.dist_model, distill_args.pretrained_path)
         self.dist_model.eval()
 

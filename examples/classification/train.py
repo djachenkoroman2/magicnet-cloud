@@ -15,6 +15,25 @@ from openpoints.models import build_model_from_cfg
 from openpoints.models.layers import furthest_point_sample, fps
 
 
+def get_process_device(cfg, gpu=None):
+    if getattr(cfg, 'device_type', 'cuda') != 'cuda':
+        return torch.device('cpu')
+    if cfg.distributed:
+        device_index = cfg.rank if gpu is None else gpu
+        return torch.device(f'cuda:{device_index}')
+    return torch.device(cfg.device)
+
+
+def move_batch_to_device(data, device):
+    non_blocking = device.type == 'cuda'
+    keys = list(data.keys() if callable(data.keys) else data.keys)
+    for key in keys:
+        value = data[key]
+        if hasattr(value, 'to'):
+            data[key] = value.to(device, non_blocking=non_blocking)
+    return data
+
+
 def resolve_num_points(cfg, *datasets):
     candidates = [
         cfg.get('num_points', None),
@@ -107,12 +126,13 @@ def main(gpu, cfg, profile=False):
     else:
         writer = None
     set_random_seed(cfg.seed + cfg.rank, deterministic=cfg.deterministic)
-    torch.backends.cudnn.enabled = True
+    process_device = get_process_device(cfg, gpu)
+    torch.backends.cudnn.enabled = cfg.use_gpu
     logging.info(cfg)
 
     if not cfg.model.get('criterion_args', False):
         cfg.model.criterion_args = cfg.criterion_args
-    model = build_model_from_cfg(cfg.model).to(cfg.rank)
+    model = build_model_from_cfg(cfg.model).to(process_device)
     model_size = cal_model_parm_nums(model)
     logging.info(model)
     logging.info('Number of params: %.4f M' % (model_size / 1e6))
@@ -280,8 +300,7 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, epoch, cfg):
     pbar = tqdm(enumerate(train_loader), total=train_loader.__len__())
     num_iter = 0
     for idx, data in pbar:
-        for key in data.keys():
-            data[key] = data[key].cuda(non_blocking=True)
+        move_batch_to_device(data, get_process_device(cfg))
         num_iter += 1
         target = data['y']
         validate_classification_target_shape(target, cfg)
@@ -342,8 +361,7 @@ def validate(model, val_loader, cfg):
     npoints = cfg.num_points
     pbar = tqdm(enumerate(val_loader), total=val_loader.__len__())
     for idx, data in pbar:
-        for key in data.keys():
-            data[key] = data[key].cuda(non_blocking=True)
+        move_batch_to_device(data, get_process_device(cfg))
         target = data['y']
         validate_classification_target_shape(target, cfg)
         points = build_point_features(data, cfg)

@@ -151,7 +151,7 @@ class ScanObjectNNHardest(Dataset):
         if split_name == 'test' and uniform_sample:
             precomputed_path = data_dir / f'{split_name}_objectdataset_augmentedrot_scale75_1024_fps.pkl'
             if not precomputed_path.exists():
-                points = torch.from_numpy(self.points).to(torch.float32).cuda()
+                points = torch.from_numpy(self.points).to(torch.float32)
                 self.points = fps(points, 1024).cpu().numpy()
                 with open(precomputed_path, 'wb') as f:
                     pickle.dump(self.points, f)
