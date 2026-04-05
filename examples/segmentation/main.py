@@ -200,25 +200,31 @@ def load_data(data_path, cfg):
         if cfg.dataset.test.split != 'test':
             label = load_label_kitti(data_path[1], remap_lut_read)
     elif _is_k3d_xyzrgb_dataset(dataset_name):
-        data = load_k3d_xyzrgb_array(data_path)  # xyzrgbl, N*7
+        data = load_k3d_xyzrgb_array(data_path, require_label=cfg.mode != 'test')  # xyzrgb[l], N*6/7
         coord = data[:, :3]
         feat = data[:, 3:6].astype(np.float32)
-        label_values = cfg.dataset.common.get('label_values', None)
-        if label_values is None:
-            raise ValueError(
-                '`dataset.common.label_values` must be set for K3DXYZRGB so test-time label remapping is stable.'
-            )
-        label = remap_k3d_xyzrgb_labels(data[:, 6], label_values)
+        if data.shape[1] >= 7:
+            label_values = cfg.dataset.common.get('label_values', None)
+            if label_values is None:
+                raise ValueError(
+                    '`dataset.common.label_values` must be set for K3DXYZRGB so test-time label remapping is stable.'
+                )
+            label = remap_k3d_xyzrgb_labels(data[:, 6], label_values)
+        else:
+            label = None
     elif _is_k3d_xyz_dataset(dataset_name):
-        data = load_k3d_xyz_array(data_path)  # xyzl, N*4
+        data = load_k3d_xyz_array(data_path, require_label=cfg.mode != 'test')  # xyz[l], N*3/4
         coord = data[:, :3]
         feat = None
-        label_values = cfg.dataset.common.get('label_values', None)
-        if label_values is None:
-            raise ValueError(
-                '`dataset.common.label_values` must be set for K3DXYZ so test-time label remapping is stable.'
-            )
-        label = remap_k3d_xyz_labels(data[:, 3], label_values)
+        if data.shape[1] >= 4:
+            label_values = cfg.dataset.common.get('label_values', None)
+            if label_values is None:
+                raise ValueError(
+                    '`dataset.common.label_values` must be set for K3DXYZ so test-time label remapping is stable.'
+                )
+            label = remap_k3d_xyz_labels(data[:, 3], label_values)
+        else:
+            label = None
     coord -= coord.min(0)
 
     idx_points = []
@@ -835,7 +841,7 @@ def test(model, data_list, cfg, num_votes=1, device=None):
                 pred = pred.cpu().numpy().squeeze().astype(np.int64)
                 raw_label_values = np.asarray(cfg.dataset.common.label_values, dtype=np.int64)
                 pred_raw = raw_label_values[pred]
-                raw_scene = load_k3d_xyzrgb_array(data_path)
+                raw_scene = load_k3d_xyzrgb_array(data_path, require_label=False)
                 save_file_name = os.path.splitext(os.path.basename(str(data_path)))[0] + '_pred.txt'
                 save_file_name = os.path.join(cfg.save_path, save_file_name)
                 raw_rgb = np.rint(raw_scene[:, 3:6]).astype(np.int64)
@@ -848,7 +854,7 @@ def test(model, data_list, cfg, num_votes=1, device=None):
                 pred = pred.cpu().numpy().squeeze().astype(np.int64)
                 raw_label_values = np.asarray(cfg.dataset.common.label_values, dtype=np.int64)
                 pred_raw = raw_label_values[pred]
-                raw_scene = load_k3d_xyz_array(data_path)
+                raw_scene = load_k3d_xyz_array(data_path, require_label=False)
                 save_file_name = os.path.splitext(os.path.basename(str(data_path)))[0] + '_pred.txt'
                 save_file_name = os.path.join(cfg.save_path, save_file_name)
                 np.savetxt(

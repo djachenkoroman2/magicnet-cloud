@@ -71,8 +71,8 @@ def resolve_k3d_xyz_path(raw_root, entry):
     )
 
 
-def load_k3d_xyz_array(data_path):
-    """Load one scene and keep only the first four columns: xyz + label."""
+def load_k3d_xyz_array(data_path, require_label=True):
+    """Load one scene and keep xyz, plus label when it is required/present."""
     data_path = Path(data_path)
     if data_path.suffix.lower() == '.npy':
         data = np.load(data_path)
@@ -81,12 +81,15 @@ def load_k3d_xyz_array(data_path):
 
     if data.ndim == 1:
         data = data[None, :]
-    if data.shape[1] < 4:
+    min_columns = 4 if require_label else 3
+    if data.shape[1] < min_columns:
+        expected_columns = '`x y z label`' if require_label else '`x y z`'
         raise ValueError(
-            f'K3DXYZ scene {data_path} must contain at least 4 columns `x y z label`, '
+            f'K3DXYZ scene {data_path} must contain at least {min_columns} columns {expected_columns}, '
             f'but got shape {data.shape}.'
         )
-    return np.asarray(data[:, :4], dtype=np.float32)
+    keep_columns = 4 if data.shape[1] >= 4 else 3
+    return np.asarray(data[:, :keep_columns], dtype=np.float32)
 
 
 def remap_k3d_xyz_labels(labels, label_values):

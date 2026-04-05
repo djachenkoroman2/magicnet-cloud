@@ -21,6 +21,16 @@ Examples:
 
 Environment variables:
   PYTHON_BIN  Python executable to use. Default: python
+
+Input formats:
+  K3DXYZ config:
+    inference accepts `x y z` or `x y z label`
+  K3DXYZRGB config:
+    inference accepts `x y z r g b` or `x y z r g b label`
+
+Output formats:
+  K3DXYZ      -> `x y z pred_label`
+  K3DXYZRGB   -> `x y z r g b pred_label`
 EOF
 }
 
