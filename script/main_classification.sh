@@ -150,7 +150,7 @@ maybe_load_modules() {
 maybe_load_modules
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: bash script/main_classification.sh <config_path> [--data <dataset_path>] [--log <log_root>] [extra args...]" >&2
+    echo "Usage: bash script/main_classification.sh <config_path> [--data <dataset_path>] [--log <log_root>] [--resume <checkpoint_path>] [extra args...]" >&2
     exit 1
 fi
 
@@ -201,6 +201,7 @@ shift
 PY_ARGS=()
 DATA_OVERRIDE=
 LOG_OVERRIDE=
+RESUME_OVERRIDE=
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --data|--data-root|--data-dir)
@@ -217,6 +218,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             LOG_OVERRIDE=$(resolve_user_path "$2")
+            shift 2
+            ;;
+        --resume)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value after $1" >&2
+                exit 1
+            fi
+            RESUME_OVERRIDE=$(resolve_user_path "$2")
             shift 2
             ;;
         *)
@@ -240,6 +249,10 @@ if [[ -n "$LOG_OVERRIDE" ]]; then
     PY_ARGS+=("root_dir=$LOG_OVERRIDE")
 fi
 
+if [[ -n "$RESUME_OVERRIDE" ]]; then
+    PY_ARGS+=("mode=resume" "pretrained_path=$RESUME_OVERRIDE")
+fi
+
 "$PYTHON_BIN" examples/classification/main.py --cfg "$cfg" "${PY_ARGS[@]}"
 
 # how to run
@@ -259,6 +272,9 @@ fi
 
 # force CPU execution
 # bash script/main_classification.sh cfgs/birds/pointnet.yaml runtime.device=cpu
+
+# resume from checkpoint
+# bash script/main_classification.sh cfgs/birds/pointnet.yaml --resume /abs/path/to/run/checkpoint/<run_name>_ckpt_latest.pth
 
 # override dataset and log locations
 # bash script/main_classification.sh cfgs/scanobjectnn/pointnext-s.yaml --data /abs/path/to/ScanObjectNN/h5_files/main_split --log /abs/path/to/logs
