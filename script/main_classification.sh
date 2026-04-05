@@ -23,13 +23,34 @@ detect_python_bin() {
         return 0
     fi
 
+    if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+        echo "$REPO_ROOT/.venv/bin/python"
+        return 0
+    fi
+
     if command -v python >/dev/null 2>&1; then
         command -v python
         return 0
     fi
 
-    echo "python3"
+    echo "python"
 }
+
+maybe_load_modules() {
+    if [[ "${USE_ENV_MODULES:-0}" != "1" ]]; then
+        return 0
+    fi
+
+    if command -v module >/dev/null 2>&1; then
+        module load cuda/11.1.1
+        module load gcc
+        echo "Loaded environment modules (cuda/11.1.1, gcc)"
+    else
+        echo "USE_ENV_MODULES=1 was requested, but \`module\` is unavailable; continuing with current environment"
+    fi
+}
+
+maybe_load_modules
 
 while true
 do
@@ -54,7 +75,16 @@ else
 fi
 
 hostname
-NUM_GPU_AVAILABLE=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l || echo 0)
+if command -v nvidia-smi >/dev/null 2>&1; then
+    GPU_QUERY=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || true)
+    if [[ -n "$GPU_QUERY" ]]; then
+        NUM_GPU_AVAILABLE=$(printf '%s\n' "$GPU_QUERY" | wc -l)
+    else
+        NUM_GPU_AVAILABLE=0
+    fi
+else
+    NUM_GPU_AVAILABLE=0
+fi
 echo $NUM_GPU_AVAILABLE
 
 
