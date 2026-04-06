@@ -1,32 +1,512 @@
 # magicnet-cloud
 
-Репозиторий подготовлен для запуска в Google Colab без создания отдельного виртуального окружения.
+Репозиторий подготовлен для запуска из Google Colab или другого ноутбука без отдельного виртуального окружения. Ниже оставлена только актуальная для ноутбука информация: установка зависимостей, запуск `script/main_classification.sh` и `script/main_segmentation.sh`, а также настройка путей к датасетам и логам на Google Drive.
 
-Что изменено:
+## Подготовка в Google Colab
 
-- зависимости для Colab ставятся скриптом `script/install_colab_requirements.sh`
-- путь к каталогу с датасетами задаётся через верхнеуровневый параметр `data_dir`
-- путь к корню логов задаётся через верхнеуровневый параметр `log_root`
-- датасетные конфиги собирают свои пути через `${data_dir}/...`
-- добавлен ноутбук для тестового запуска обучения и просмотра TensorBoard
+Сначала клонируйте репозиторий в Colab и перейдите в его каталог:
 
-Быстрый старт:
+```bash
+git clone https://github.com/djachenkoroman2/magicnet-cloud.git
+cd /content/magicnet-cloud
+```
+
+Если репозиторий уже был клонирован в текущем runtime, достаточно перейти в каталог проекта:
+
+```bash
+cd /content/magicnet-cloud
+```
+
+Смонтируйте Google Drive:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+Рекомендуемые каталоги:
+
+- датасеты: `/content/drive/MyDrive/data`
+- логи и чекпоинты: `/content/drive/MyDrive/logs`
+
+Создать их можно так:
+
+```bash
+mkdir -p /content/drive/MyDrive/data
+mkdir -p /content/drive/MyDrive/logs
+```
+
+Установите зависимости текущего Colab-runtime:
 
 ```bash
 bash script/install_colab_requirements.sh
-python examples/classification/main.py --cfg cfgs/scanobjectnn/dgcnn.yaml data_dir=/content/data epochs=1
 ```
 
-Если нужно хранить логи вне репозитория, можно передать, например, `log_root=/content/drive/MyDrive/pointnext_logs`.
-Тогда ран будет создан в `${log_root}/${task_name}/<run_name>/`.
+Примечание для Colab: если вы запускаете команды через отдельные `!`-ячейки, переменные окружения между ними не сохраняются. Поэтому либо используйте абсолютные пути прямо в команде, либо запускайте команды через `%%bash`.
 
-Для сегментации через `script/main_segmentation.sh` в Colab дополнительные зависимости теперь подхватываются автоматически.
-Например, `PointNet++`-запуск можно стартовать сразу так:
+## Как устроены пути к данным и логам
+
+В базовом конфиге проекта заданы:
+
+- `data_dir`: общий корень с датасетами
+- `log_root`: общий корень для логов
+- `root_dir: ${log_root}`: фактический корень, куда складываются run-директории
+
+Это значит:
+
+- если вы передаёте `data_dir=/content/drive/MyDrive/data`, конкретный конфиг сам достроит путь к нужному датасету
+- если вы передаёте `log_root=/content/drive/MyDrive/logs`, логи и чекпоинты будут сохраняться на Google Drive
+
+Итоговая структура логов создаётся автоматически в виде:
+
+```text
+<log_root>/<task_name>/<run_name>/
+```
+
+Например:
+
+- классификация `cfgs/scanobjectnn/...` пишет в `/content/drive/MyDrive/logs/scanobjectnn/<run_name>/`
+- сегментация `cfgs/k3d_xyz/...` пишет в `/content/drive/MyDrive/logs/k3d_xyz/<run_name>/`
+
+Если путь на Google Drive содержит пробелы или кириллицу, передавайте override целиком в кавычках:
 
 ```bash
-bash script/main_segmentation.sh cfgs/k3d_xyz/pointnet++/pointnet++.yaml data_dir=/content/data log_root=/content/drive/MyDrive/pointnext_logs epochs=1
+"data_dir=/content/drive/MyDrive/Мои данные/data"
+"log_root=/content/drive/MyDrive/Мои данные/logs"
 ```
 
-Ноутбук для Colab:
+## Где должны лежать датасеты
 
-- [notebooks/google_colab_train_smoke.ipynb](/home/researcher/dev/magicnet-cloud/notebooks/google_colab_train_smoke.ipynb)
+### Classification: ScanObjectNN
+
+Для конфигов из `cfgs/scanobjectnn/*.yaml` проект ожидает данные по пути:
+
+```text
+<data_dir>/ScanObjectNN/h5_files/main_split/
+```
+
+Минимально нужны файлы:
+
+```text
+training_objectdataset_augmentedrot_scale75.h5
+test_objectdataset_augmentedrot_scale75.h5
+```
+
+Если вы передали:
+
+```text
+data_dir=/content/drive/MyDrive/data
+```
+
+то итоговый путь должен быть таким:
+
+```text
+/content/drive/MyDrive/data/ScanObjectNN/h5_files/main_split/
+```
+
+### Classification: Birds
+
+Для конфигов из `cfgs/birds/*.yaml` проект ожидает не общий корень `data`, а точный путь к самому датасету `birds`:
+
+```text
+<birds_data_root>/
+  <class_1>/
+    sample_001.txt
+    sample_002.txt
+  <class_2>/
+    sample_001.txt
+  ...
+  splits/
+    train.txt
+    val.txt
+    test.txt
+```
+
+Что важно:
+
+- каждая папка верхнего уровня, кроме `splits/`, считается отдельным классом
+- каждый `.txt` файл должен содержать как минимум три колонки: `x y z`
+- папка `splits/` необязательна; если её нет, train/val/test будут собраны автоматически по `split_ratios` из конфига
+
+Рекомендуемый путь на Google Drive:
+
+```text
+/content/drive/MyDrive/data/birds/
+```
+
+Для `birds` в `main_classification.sh` нужно передавать именно этот точный путь:
+
+```bash
+--data /content/drive/MyDrive/data/birds
+```
+
+### Segmentation: K3DXYZ
+
+Для конфигов из `cfgs/k3d_xyz/*.yaml` проект ожидает:
+
+```text
+<data_dir>/k3d_xyz/
+  raw/
+  splits/
+  processed/
+```
+
+Обязательно должны существовать:
+
+- `raw/` с исходными сценами
+- `splits/train.txt`, `splits/val.txt`, `splits/test.txt`
+
+Каталог `processed/` может быть создан автоматически во время работы.
+
+Если вы передали:
+
+```text
+data_dir=/content/drive/MyDrive/data
+```
+
+то итоговый путь будет:
+
+```text
+/content/drive/MyDrive/data/k3d_xyz/
+```
+
+Если датасет лежит не по стандартной схеме, можно переопределить точный путь напрямую через `dataset.common.data_root=/полный/путь`.
+
+## `script/main_classification.sh`
+
+### Назначение
+
+Скрипт запускает `examples/classification/main.py`, сам находит конфиг и умеет отдельно принимать путь к датасету, корень логов и чекпоинт для продолжения обучения.
+
+### Синтаксис
+
+```bash
+bash script/main_classification.sh <config_path> [--data <dataset_path>] [--log <log_root>] [--resume <checkpoint_path>] [extra args...]
+```
+
+### Что означает каждый аргумент
+
+- `<config_path>`: путь к yaml-конфигу, например `cfgs/scanobjectnn/dgcnn.yaml`
+- `--data`: корень датасетов; скрипт сам подставит его в нужный ключ конфига
+- `--log`: корень для логов и чекпоинтов
+- `--resume`: путь к checkpoint; скрипт автоматически добавит `mode=resume`
+- `[extra args...]`: любые дополнительные override параметров конфига, например `epochs=1`, `mode=test`, `runtime.device=cpu`
+
+### Как работает `--data`
+
+`main_classification.sh` специально сделан так, чтобы не заставлять вас помнить внутренний ключ конфига:
+
+- если конфиг использует `dataset.common.data_dir`, будет переопределён именно он
+- если конфиг использует `dataset.common.data_root`, будет переопределён он
+- иначе будет переопределён верхнеуровневый `data_dir`
+
+Для `cfgs/scanobjectnn/*.yaml` это удобно, потому что достаточно передать только корень:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/scanobjectnn/dgcnn.yaml \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  epochs=1
+```
+
+В этом случае классификация будет искать ScanObjectNN здесь:
+
+```text
+/content/drive/MyDrive/data/ScanObjectNN/h5_files/main_split/
+```
+
+Логи и чекпоинты уйдут сюда:
+
+```text
+/content/drive/MyDrive/logs/scanobjectnn/<run_name>/
+```
+
+Для `cfgs/birds/*.yaml` нужно передавать уже не общий каталог `/content/drive/MyDrive/data`, а точную папку датасета:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/birds/pointnet.yaml \
+  --data /content/drive/MyDrive/data/birds \
+  --log /content/drive/MyDrive/logs \
+  epochs=1
+```
+
+В этом случае классификация будет читать данные прямо из:
+
+```text
+/content/drive/MyDrive/data/birds/
+```
+
+Логи и чекпоинты уйдут сюда:
+
+```text
+/content/drive/MyDrive/logs/birds/<run_name>/
+```
+
+### Типовые сценарии
+
+Обучение на `ScanObjectNN`:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/scanobjectnn/dgcnn.yaml \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  epochs=50
+```
+
+Тест `ScanObjectNN` по готовому чекпоинту:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/scanobjectnn/dgcnn.yaml \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  mode=test \
+  pretrained_path=/content/drive/MyDrive/logs/scanobjectnn/<run_name>/checkpoint/<ckpt_best>.pth
+```
+
+Продолжение обучения `ScanObjectNN` с последнего checkpoint:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/scanobjectnn/dgcnn.yaml \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  --resume /content/drive/MyDrive/logs/scanobjectnn/<run_name>/checkpoint/<ckpt_latest>.pth
+```
+
+Обучение на `birds`:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/birds/pointnet.yaml \
+  --data /content/drive/MyDrive/data/birds \
+  --log /content/drive/MyDrive/logs \
+  epochs=50
+```
+
+Тест `birds` по готовому чекпоинту:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/birds/pointnet.yaml \
+  --data /content/drive/MyDrive/data/birds \
+  --log /content/drive/MyDrive/logs \
+  mode=test \
+  pretrained_path=/content/drive/MyDrive/logs/birds/<run_name>/checkpoint/<ckpt_best>.pth
+```
+
+Продолжение обучения `birds` с последнего checkpoint:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/birds/pointnet.yaml \
+  --data /content/drive/MyDrive/data/birds \
+  --log /content/drive/MyDrive/logs \
+  --resume /content/drive/MyDrive/logs/birds/<run_name>/checkpoint/<ckpt_latest>.pth
+```
+
+Запуск `birds` на CPU:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/birds/pointnet.yaml \
+  --data /content/drive/MyDrive/data/birds \
+  --log /content/drive/MyDrive/logs \
+  runtime.device=cpu \
+  epochs=1
+```
+
+Запуск `ScanObjectNN` на CPU:
+
+```bash
+bash script/main_classification.sh \
+  cfgs/scanobjectnn/dgcnn.yaml \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  runtime.device=cpu \
+  epochs=1
+```
+
+## `script/main_segmentation.sh`
+
+### Назначение
+
+Скрипт запускает `examples/segmentation/main.py`. В отличие от classification-скрипта, у него нет отдельных флагов `--data`, `--log` и `--resume`: все настройки передаются как обычные override параметров конфига.
+
+### Синтаксис
+
+```bash
+bash script/main_segmentation.sh <config_path> [config_override...]
+```
+
+### Как передавать параметры
+
+Рекомендуемый формат:
+
+```bash
+ключ=значение
+```
+
+Примеры:
+
+- `data_dir=/content/drive/MyDrive/data`
+- `log_root=/content/drive/MyDrive/logs`
+- `epochs=1`
+- `mode=resume`
+- `pretrained_path=/content/drive/MyDrive/.../checkpoint/model_ckpt_latest.pth`
+- `runtime.device=cpu`
+
+### Важная особенность для Colab
+
+Если скрипт понимает, что запущен в Google Colab, он автоматически вызывает `script/install_colab_requirements.sh` и при необходимости пытается поставить дополнительные зависимости для сегментационных моделей.
+
+Это особенно полезно для:
+
+- `PointNet++`
+- `PointNeXt`
+- `PointTransformer`
+
+Если автоподготовка не нужна, её можно отключить:
+
+```bash
+SKIP_COLAB_REQUIREMENTS=1 bash script/main_segmentation.sh ...
+```
+
+### Базовый запуск для K3DXYZ
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  epochs=1
+```
+
+В этом случае сегментация будет читать данные из:
+
+```text
+/content/drive/MyDrive/data/k3d_xyz/
+```
+
+А run-директория появится здесь:
+
+```text
+/content/drive/MyDrive/logs/k3d_xyz/<run_name>/
+```
+
+### Типовые сценарии
+
+Обучение:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  epochs=100
+```
+
+Продолжение обучения:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  mode=resume \
+  pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_latest>.pth
+```
+
+Валидация лучшего checkpoint:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  mode=val \
+  pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
+```
+
+Тест:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  mode=test \
+  pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
+```
+
+Тест по списку `val.txt` вместо `test.txt`:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  mode=test \
+  dataset.test.split=val \
+  pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
+```
+
+Запуск на CPU:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  data_dir=/content/drive/MyDrive/data \
+  log_root=/content/drive/MyDrive/logs \
+  runtime.device=cpu \
+  epochs=1
+```
+
+### Когда использовать `data_dir`, а когда `dataset.common.data_root`
+
+Используйте `data_dir`, если структура датасета соответствует конфигу. Для K3DXYZ:
+
+```bash
+data_dir=/content/drive/MyDrive/data
+```
+
+Тогда конфиг сам превратит его в:
+
+```text
+/content/drive/MyDrive/data/k3d_xyz
+```
+
+Используйте `dataset.common.data_root`, если датасет лежит в нестандартной папке:
+
+```bash
+bash script/main_segmentation.sh \
+  cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  dataset.common.data_root=/content/drive/MyDrive/custom_datasets/my_k3d_xyz \
+  log_root=/content/drive/MyDrive/logs \
+  epochs=1
+```
+
+## TensorBoard для логов на Google Drive
+
+Если логи сохраняются на Google Drive, TensorBoard можно открыть прямо по корню логов:
+
+```python
+%load_ext tensorboard
+%tensorboard --logdir /content/drive/MyDrive/logs
+```
+
+Или по конкретной задаче:
+
+```python
+%tensorboard --logdir /content/drive/MyDrive/logs/k3d_xyz
+```
+
+## Коротко: что использовать в ноутбуке
+
+- для классификации удобнее всего: `bash script/main_classification.sh ... --data <путь_к_датасетам> --log <путь_к_логам>`
+- для сегментации удобнее всего: `bash script/main_segmentation.sh ... data_dir=<путь_к_датасетам> log_root=<путь_к_логам>`
+- если датасет лежит не по стандартной структуре конфига, переопределяйте точный путь через `dataset.common.data_root=...`
+- если чекпоинты и логи должны сохраняться на Google Drive, передавайте `log_root=/content/drive/MyDrive/logs`
