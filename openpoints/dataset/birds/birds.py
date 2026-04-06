@@ -23,10 +23,47 @@ def load_birds_xyz_array(file_path):
 
 @DATASETS.register_module()
 class Birds(Dataset):
-    """Point-cloud classification dataset backed by `data/birds/<class>/*.txt`."""
+    """Point-cloud classification dataset backed by `data/birds/<class>/*.txt`.
+
+    The dataset accepts either the explicit Birds root (`.../data/birds`) or the
+    shared datasets root (`.../data`). In the latter case it will
+    automatically resolve the actual dataset directory to `.../data/birds` when
+    that layout is present.
+    """
 
     gravity_dim = 2
     split_names = ('train', 'val', 'test')
+
+    @classmethod
+    def _looks_like_data_root(cls, data_root: Path) -> bool:
+        if not data_root.is_dir():
+            return False
+
+        if (data_root / 'splits').is_dir():
+            return True
+
+        for child in data_root.iterdir():
+            if not child.is_dir() or child.name == 'splits':
+                continue
+            if any(child.glob('*.txt')):
+                return True
+        return False
+
+    @classmethod
+    def _normalize_data_root(cls, data_root) -> Path:
+        data_root = Path(data_root).expanduser()
+        if not data_root.is_absolute():
+            data_root = (Path.cwd() / data_root).resolve()
+
+        candidates = [data_root]
+        if data_root.name != 'birds':
+            candidates.append(data_root / 'birds')
+
+        for candidate in candidates:
+            if cls._looks_like_data_root(candidate):
+                return candidate
+
+        return candidates[-1]
 
     def __init__(
         self,
@@ -42,9 +79,7 @@ class Birds(Dataset):
     ):
         super().__init__()
 
-        self.data_root = Path(data_root).expanduser()
-        if not self.data_root.is_absolute():
-            self.data_root = (Path.cwd() / self.data_root).resolve()
+        self.data_root = self._normalize_data_root(data_root)
         self.split_root = self.data_root / 'splits'
         self.split = split.lower()
         if self.split not in (*self.split_names, 'all'):
@@ -273,4 +308,3 @@ class Birds(Dataset):
         else:
             data['x'] = data['pos']
         return data
-

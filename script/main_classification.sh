@@ -114,6 +114,35 @@ config_chain_declares_nested_key() {
     return 1
 }
 
+config_chain_declares_top_level_key() {
+    local cfg_path=$1
+    local key_name=$2
+    local extension=${cfg_path##*.}
+    local default_path
+    local dir
+
+    extension=.$extension
+    if grep -Eq "^${key_name}:" "$cfg_path"; then
+        return 0
+    fi
+
+    dir=$(dirname "$cfg_path")
+    while true; do
+        default_path="$dir/default$extension"
+        if [[ -f "$default_path" ]] && grep -Eq "^${key_name}:" "$default_path"; then
+            return 0
+        fi
+
+        if [[ "$dir" == "/" ]]; then
+            break
+        fi
+
+        dir=$(dirname "$dir")
+    done
+
+    return 1
+}
+
 detect_python_bin() {
     if [[ -n "${PYTHON_BIN:-}" ]]; then
         echo "$PYTHON_BIN"
@@ -236,17 +265,23 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -n "$DATA_OVERRIDE" ]]; then
-    if config_chain_declares_nested_key "$cfg" "data_root"; then
-        PY_ARGS+=("dataset.common.data_root=$DATA_OVERRIDE")
+    if config_chain_declares_top_level_key "$cfg" "data_dir"; then
+        PY_ARGS+=("data_dir=$DATA_OVERRIDE")
     elif config_chain_declares_nested_key "$cfg" "data_dir"; then
         PY_ARGS+=("dataset.common.data_dir=$DATA_OVERRIDE")
+    elif config_chain_declares_nested_key "$cfg" "data_root"; then
+        PY_ARGS+=("dataset.common.data_root=$DATA_OVERRIDE")
     else
         PY_ARGS+=("data_dir=$DATA_OVERRIDE")
     fi
 fi
 
 if [[ -n "$LOG_OVERRIDE" ]]; then
-    PY_ARGS+=("root_dir=$LOG_OVERRIDE")
+    if config_chain_declares_top_level_key "$cfg" "log_root"; then
+        PY_ARGS+=("log_root=$LOG_OVERRIDE")
+    else
+        PY_ARGS+=("root_dir=$LOG_OVERRIDE")
+    fi
 fi
 
 if [[ -n "$RESUME_OVERRIDE" ]]; then
@@ -278,4 +313,4 @@ fi
 
 # override dataset and log locations
 # bash script/main_classification.sh cfgs/scanobjectnn/pointnext-s.yaml --data /abs/path/to/ScanObjectNN/h5_files/main_split --log /abs/path/to/logs
-# bash script/main_classification.sh cfgs/birds/pointnet.yaml --data /abs/path/to/birds --log /abs/path/to/logs
+# bash script/main_classification.sh cfgs/birds/pointnet.yaml --data /abs/path/to/data --log /abs/path/to/logs

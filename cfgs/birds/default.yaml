@@ -4,7 +4,7 @@
 dataset:
   common:
     NAME: Birds
-    data_root: './data/birds'
+    data_root: ${data_dir}/birds
     num_points: 1024
     split_ratios: [0.8, 0.1, 0.1]
     seed: 42
@@ -68,4 +68,3 @@ pretrained_path: null
 
 wandb:
   project: PointNeXt-Birds
-

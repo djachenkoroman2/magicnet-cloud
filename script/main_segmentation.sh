@@ -69,6 +69,81 @@ resolve_cfg_path() {
     return 1
 }
 
+resolve_user_path() {
+    local input_path=$1
+    local candidate
+
+    if [[ "$input_path" == /* ]]; then
+        candidate=$input_path
+    else
+        candidate=$CALLER_PWD/$input_path
+    fi
+
+    if readlink -f "$candidate" >/dev/null 2>&1; then
+        readlink -f "$candidate"
+    else
+        printf '%s\n' "$candidate"
+    fi
+}
+
+config_chain_declares_nested_key() {
+    local cfg_path=$1
+    local key_name=$2
+    local extension=${cfg_path##*.}
+    local default_path
+    local dir
+
+    extension=.$extension
+    if grep -Eq "^[[:space:]]+${key_name}:" "$cfg_path"; then
+        return 0
+    fi
+
+    dir=$(dirname "$cfg_path")
+    while true; do
+        default_path="$dir/default$extension"
+        if [[ -f "$default_path" ]] && grep -Eq "^[[:space:]]+${key_name}:" "$default_path"; then
+            return 0
+        fi
+
+        if [[ "$dir" == "/" ]]; then
+            break
+        fi
+
+        dir=$(dirname "$dir")
+    done
+
+    return 1
+}
+
+config_chain_declares_top_level_key() {
+    local cfg_path=$1
+    local key_name=$2
+    local extension=${cfg_path##*.}
+    local default_path
+    local dir
+
+    extension=.$extension
+    if grep -Eq "^${key_name}:" "$cfg_path"; then
+        return 0
+    fi
+
+    dir=$(dirname "$cfg_path")
+    while true; do
+        default_path="$dir/default$extension"
+        if [[ -f "$default_path" ]] && grep -Eq "^${key_name}:" "$default_path"; then
+            return 0
+        fi
+
+        if [[ "$dir" == "/" ]]; then
+            break
+        fi
+
+        dir=$(dirname "$dir")
+    done
+
+    return 1
+}
+
 detect_python_bin() {
     if [[ -n "${PYTHON_BIN:-}" ]]; then
         echo "$PYTHON_BIN"
@@ -155,7 +230,7 @@ bootstrap_colab_requirements() {
 }
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: bash script/main_segmentation.sh <config_path> [extra args...]" >&2
+    echo "Usage: bash script/main_segmentation.sh <config_path> [--data <dataset_path>] [--log <log_root>] [--resume <checkpoint_path>] [extra args...]" >&2
     exit 1
 fi
 
@@ -191,7 +266,68 @@ echo $NUM_GPU_AVAILABLE
 
 
 cfg=$(resolve_cfg_path "$1")
-PY_ARGS=("${@:2}")
+shift
+
+PY_ARGS=()
+DATA_OVERRIDE=
+LOG_OVERRIDE=
+RESUME_OVERRIDE=
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --data|--data-root|--data-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value after $1" >&2
+                exit 1
+            fi
+            DATA_OVERRIDE=$(resolve_user_path "$2")
+            shift 2
+            ;;
+        --log|--log-root|--root-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value after $1" >&2
+                exit 1
+            fi
+            LOG_OVERRIDE=$(resolve_user_path "$2")
+            shift 2
+            ;;
+        --resume)
+            if [[ $# -lt 2 ]]; then
+                echo "Missing value after $1" >&2
+                exit 1
+            fi
+            RESUME_OVERRIDE=$(resolve_user_path "$2")
+            shift 2
+            ;;
+        *)
+            PY_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [[ -n "$DATA_OVERRIDE" ]]; then
+    if config_chain_declares_top_level_key "$cfg" "data_dir"; then
+        PY_ARGS+=("data_dir=$DATA_OVERRIDE")
+    elif config_chain_declares_nested_key "$cfg" "data_dir"; then
+        PY_ARGS+=("dataset.common.data_dir=$DATA_OVERRIDE")
+    elif config_chain_declares_nested_key "$cfg" "data_root"; then
+        PY_ARGS+=("dataset.common.data_root=$DATA_OVERRIDE")
+    else
+        PY_ARGS+=("data_dir=$DATA_OVERRIDE")
+    fi
+fi
+
+if [[ -n "$LOG_OVERRIDE" ]]; then
+    if config_chain_declares_top_level_key "$cfg" "log_root"; then
+        PY_ARGS+=("log_root=$LOG_OVERRIDE")
+    else
+        PY_ARGS+=("root_dir=$LOG_OVERRIDE")
+    fi
+fi
+
+if [[ -n "$RESUME_OVERRIDE" ]]; then
+    PY_ARGS+=("mode=resume" "pretrained_path=$RESUME_OVERRIDE")
+fi
 
 bootstrap_colab_requirements "$cfg"
 
@@ -207,3 +343,9 @@ bootstrap_colab_requirements "$cfg"
 
 # local machine, run with 1 GPU:
 # CUDA_VISIBLE_DEVICES=0 bash script/main_segmentation.sh cfgs/s3dis/pointnext-s.yaml
+
+# force CPU execution
+# bash script/main_segmentation.sh cfgs/k3d_xyz/pointnet++/pointnet++.yaml --data /abs/path/to/data --log /abs/path/to/logs runtime.device=cpu
+
+# resume from checkpoint
+# bash script/main_segmentation.sh cfgs/k3d_xyz/pointnet++/pointnet++.yaml --data /abs/path/to/data --log /abs/path/to/logs --resume /abs/path/to/run/checkpoint/<run_name>_ckpt_latest.pth

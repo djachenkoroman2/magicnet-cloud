@@ -106,10 +106,22 @@ data_dir=/content/drive/MyDrive/data
 
 ### Classification: Birds
 
-Для конфигов из `cfgs/birds/*.yaml` проект ожидает не общий корень `data`, а точный путь к самому датасету `birds`:
+Для конфигов из `cfgs/birds/*.yaml` проект теперь тоже ожидает общий корень `data`:
 
 ```text
-<birds_data_root>/
+data_dir=/content/drive/MyDrive/data
+```
+
+а сам датасет должен лежать внутри:
+
+```text
+/content/drive/MyDrive/data/birds/
+```
+
+Структура папки `birds`:
+
+```text
+<data_dir>/birds/
   <class_1>/
     sample_001.txt
     sample_002.txt
@@ -128,16 +140,10 @@ data_dir=/content/drive/MyDrive/data
 - каждый `.txt` файл должен содержать как минимум три колонки: `x y z`
 - папка `splits/` необязательна; если её нет, train/val/test будут собраны автоматически по `split_ratios` из конфига
 
-Рекомендуемый путь на Google Drive:
-
-```text
-/content/drive/MyDrive/data/birds/
-```
-
-Для `birds` в `main_classification.sh` нужно передавать именно этот точный путь:
+Для `birds` в `main_classification.sh` теперь достаточно передать общий корень:
 
 ```bash
---data /content/drive/MyDrive/data/birds
+--data /content/drive/MyDrive/data
 ```
 
 ### Segmentation: K3DXYZ
@@ -200,6 +206,8 @@ bash script/main_classification.sh <config_path> [--data <dataset_path>] [--log 
 - если конфиг использует `dataset.common.data_root`, будет переопределён он
 - иначе будет переопределён верхнеуровневый `data_dir`
 
+Для `birds` это тоже работает: если передать общий корень `data`, датасет автоматически найдёт папку `data/birds`.
+
 Для `cfgs/scanobjectnn/*.yaml` это удобно, потому что достаточно передать только корень:
 
 ```bash
@@ -222,17 +230,17 @@ bash script/main_classification.sh \
 /content/drive/MyDrive/logs/scanobjectnn/<run_name>/
 ```
 
-Для `cfgs/birds/*.yaml` нужно передавать уже не общий каталог `/content/drive/MyDrive/data`, а точную папку датасета:
+Для `cfgs/birds/*.yaml` теперь тоже можно передавать общий каталог `/content/drive/MyDrive/data`:
 
 ```bash
 bash script/main_classification.sh \
   cfgs/birds/pointnet.yaml \
-  --data /content/drive/MyDrive/data/birds \
+  --data /content/drive/MyDrive/data \
   --log /content/drive/MyDrive/logs \
   epochs=1
 ```
 
-В этом случае классификация будет читать данные прямо из:
+В этом случае классификация будет читать данные из:
 
 ```text
 /content/drive/MyDrive/data/birds/
@@ -282,7 +290,7 @@ bash script/main_classification.sh \
 ```bash
 bash script/main_classification.sh \
   cfgs/birds/pointnet.yaml \
-  --data /content/drive/MyDrive/data/birds \
+  --data /content/drive/MyDrive/data \
   --log /content/drive/MyDrive/logs \
   epochs=50
 ```
@@ -292,7 +300,7 @@ bash script/main_classification.sh \
 ```bash
 bash script/main_classification.sh \
   cfgs/birds/pointnet.yaml \
-  --data /content/drive/MyDrive/data/birds \
+  --data /content/drive/MyDrive/data \
   --log /content/drive/MyDrive/logs \
   mode=test \
   pretrained_path=/content/drive/MyDrive/logs/birds/<run_name>/checkpoint/<ckpt_best>.pth
@@ -303,7 +311,7 @@ bash script/main_classification.sh \
 ```bash
 bash script/main_classification.sh \
   cfgs/birds/pointnet.yaml \
-  --data /content/drive/MyDrive/data/birds \
+  --data /content/drive/MyDrive/data \
   --log /content/drive/MyDrive/logs \
   --resume /content/drive/MyDrive/logs/birds/<run_name>/checkpoint/<ckpt_latest>.pth
 ```
@@ -313,7 +321,7 @@ bash script/main_classification.sh \
 ```bash
 bash script/main_classification.sh \
   cfgs/birds/pointnet.yaml \
-  --data /content/drive/MyDrive/data/birds \
+  --data /content/drive/MyDrive/data \
   --log /content/drive/MyDrive/logs \
   runtime.device=cpu \
   epochs=1
@@ -334,17 +342,25 @@ bash script/main_classification.sh \
 
 ### Назначение
 
-Скрипт запускает `examples/segmentation/main.py`. В отличие от classification-скрипта, у него нет отдельных флагов `--data`, `--log` и `--resume`: все настройки передаются как обычные override параметров конфига.
+Скрипт запускает `examples/segmentation/main.py` и поддерживает те же основные флаги для путей, что и `script/main_classification.sh`: `--data`, `--log`, `--resume`.
 
 ### Синтаксис
 
 ```bash
-bash script/main_segmentation.sh <config_path> [config_override...]
+bash script/main_segmentation.sh <config_path> [--data <dataset_path>] [--log <log_root>] [--resume <checkpoint_path>] [extra args...]
 ```
 
-### Как передавать параметры
+### Что означает каждый аргумент
 
-Рекомендуемый формат:
+- `<config_path>`: путь к yaml-конфигу, например `cfgs/k3d_xyz/pointnet++/pointnet++.yaml`
+- `--data`: общий корень датасетов; если в конфиге есть верхнеуровневый `data_dir`, будет переопределён именно он
+- `--log`: корень логов и чекпоинтов; если в конфиге есть `log_root`, будет переопределён он
+- `--resume`: путь к checkpoint для продолжения обучения; скрипт автоматически добавит `mode=resume`
+- `[extra args...]`: любые остальные override параметров конфига, например `epochs=1`, `mode=test`, `pretrained_path=...`, `runtime.device=cpu`
+
+### Как передавать дополнительные override
+
+Все дополнительные параметры по-прежнему можно передавать в формате:
 
 ```bash
 ключ=значение
@@ -352,12 +368,11 @@ bash script/main_segmentation.sh <config_path> [config_override...]
 
 Примеры:
 
-- `data_dir=/content/drive/MyDrive/data`
-- `log_root=/content/drive/MyDrive/logs`
 - `epochs=1`
-- `mode=resume`
-- `pretrained_path=/content/drive/MyDrive/.../checkpoint/model_ckpt_latest.pth`
+- `mode=val`
+- `pretrained_path=/content/drive/MyDrive/.../checkpoint/model_ckpt_best.pth`
 - `runtime.device=cpu`
+- `dataset.test.split=val`
 
 ### Важная особенность для Colab
 
@@ -380,8 +395,8 @@ SKIP_COLAB_REQUIREMENTS=1 bash script/main_segmentation.sh ...
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   epochs=1
 ```
 
@@ -404,8 +419,8 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   epochs=100
 ```
 
@@ -414,10 +429,9 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
-  mode=resume \
-  pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_latest>.pth
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
+  --resume /content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_latest>.pth
 ```
 
 Валидация лучшего checkpoint:
@@ -425,8 +439,8 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   mode=val \
   pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
 ```
@@ -436,8 +450,8 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   mode=test \
   pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
 ```
@@ -447,8 +461,8 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   mode=test \
   dataset.test.split=val \
   pretrained_path=/content/drive/MyDrive/logs/k3d_xyz/<run_name>/checkpoint/<ckpt_best>.pth
@@ -459,18 +473,18 @@ bash script/main_segmentation.sh \
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
-  data_dir=/content/drive/MyDrive/data \
-  log_root=/content/drive/MyDrive/logs \
+  --data /content/drive/MyDrive/data \
+  --log /content/drive/MyDrive/logs \
   runtime.device=cpu \
   epochs=1
 ```
 
 ### Когда использовать `data_dir`, а когда `dataset.common.data_root`
 
-Используйте `data_dir`, если структура датасета соответствует конфигу. Для K3DXYZ:
+Через `--data` скрипт в первую очередь переопределяет верхнеуровневый `data_dir`, поэтому это основной и рекомендуемый способ. Для K3DXYZ:
 
 ```bash
-data_dir=/content/drive/MyDrive/data
+--data /content/drive/MyDrive/data
 ```
 
 Тогда конфиг сам превратит его в:
@@ -484,8 +498,8 @@ data_dir=/content/drive/MyDrive/data
 ```bash
 bash script/main_segmentation.sh \
   cfgs/k3d_xyz/pointnet++/pointnet++.yaml \
+  --log /content/drive/MyDrive/logs \
   dataset.common.data_root=/content/drive/MyDrive/custom_datasets/my_k3d_xyz \
-  log_root=/content/drive/MyDrive/logs \
   epochs=1
 ```
 
@@ -507,6 +521,6 @@ bash script/main_segmentation.sh \
 ## Коротко: что использовать в ноутбуке
 
 - для классификации удобнее всего: `bash script/main_classification.sh ... --data <путь_к_датасетам> --log <путь_к_логам>`
-- для сегментации удобнее всего: `bash script/main_segmentation.sh ... data_dir=<путь_к_датасетам> log_root=<путь_к_логам>`
+- для сегментации удобнее всего: `bash script/main_segmentation.sh ... --data <путь_к_датасетам> --log <путь_к_логам>`
 - если датасет лежит не по стандартной структуре конфига, переопределяйте точный путь через `dataset.common.data_root=...`
 - если чекпоинты и логи должны сохраняться на Google Drive, передавайте `log_root=/content/drive/MyDrive/logs`
